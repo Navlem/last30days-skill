@@ -1,0 +1,1 @@
+GitHub source footers distinguish open issues/PRs and pull-request activity from discussion comments, including conservatively classified legacy cached results. Genuine issue and PR comment counts remain discussion comments.
