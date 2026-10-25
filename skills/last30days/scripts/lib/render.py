@@ -2981,7 +2981,12 @@ def _build_source_footer_lines(report: schema.Report) -> list[str]:
         if source_key == "github":
             engagement_fields = tuple(
                 field for field in engagement_fields if field[0] != "comments"
-            ) + (("open_issues", "open issues/PRs"), ("comments", "comments"))
+            ) + (
+                ("open_issues", "open issues/PRs"),
+                ("total_prs", "total PRs"),
+                ("contributed_prs", "contributed PRs"),
+                ("comments", "comments"),
+            )
         github_metrics = [_github_footer_engagement(item) for item in items] if source_key == "github" else []
         for eng_key, word in engagement_fields:
             if source_key == "github":

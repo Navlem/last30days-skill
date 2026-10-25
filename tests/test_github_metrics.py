@@ -102,6 +102,69 @@ def metric_item(engagement, labels=None, url='https://github.com/alice/own'):
         'date': END, 'engagement': engagement, 'metadata': {'labels': labels or []}}, 0, START, END)
 
 class FooterMetrics(unittest.TestCase):
+    def test_total_prs_visible_in_all_renderer_footers(self):
+        report = metric_report([metric_item({'open_issues': 0, 'total_prs': 8})])
+        before = copy.deepcopy(report)
+        expected = '🐙 GitHub: 1 item │ 8 total PRs'
+        self.assertEqual(render._build_source_footer_lines(report), [expected])
+        for text in [render.render_compact(report), render.render_for_html(report),
+                     render.render_comparison_multi([('Alice', report)]),
+                     render.render_for_html_comparison([('Alice', report)])]:
+            self.assertIn(expected, text)
+        self.assertEqual(report, before)
+
+    def test_contributed_prs_visible_in_all_renderer_footers(self):
+        report = metric_report([metric_item({'open_issues': 0, 'contributed_prs': 2})])
+        before = copy.deepcopy(report)
+        expected = '🐙 GitHub: 1 item │ 2 contributed PRs'
+        self.assertEqual(render._build_source_footer_lines(report), [expected])
+        for text in [render.render_compact(report), render.render_for_html(report),
+                     render.render_comparison_multi([('Alice', report)]),
+                     render.render_for_html_comparison([('Alice', report)])]:
+            self.assertIn(expected, text)
+        self.assertEqual(report, before)
+
+    def test_pr_volume_footer_matrix_across_renderers(self):
+        cases = [
+            ('zero-open-inventory', [metric_item({'open_issues': 0, 'total_prs': 8, 'contributed_prs': 2})],
+             '8 total PRs │ 2 contributed PRs'),
+            ('typed', [metric_item({'stars': 123, 'merged_prs': 3, 'reactions': 5,
+                                   'open_issues': 17, 'total_prs': 8, 'contributed_prs': 2})],
+             '123 stars │ 3 merged │ 5 reactions │ 17 open issues/PRs │ 8 total PRs │ 2 contributed PRs'),
+            ('legacy', [metric_item({'comments': 8}, ['velocity'], 'https://github.com/alice/?tab=overview'),
+                        metric_item({'comments': 2}, ['external-repo'], 'https://github.com/other/ext/')],
+             '8 total PRs │ 2 contributed PRs'),
+            ('typed-precedence', [metric_item({'total_prs': 8, 'comments': 99}, ['velocity'], 'https://github.com/alice'),
+                                  metric_item({'contributed_prs': 2, 'comments': 99}, ['external-repo'])],
+             '8 total PRs │ 2 contributed PRs'),
+            ('typed-zero', [metric_item({'total_prs': 0, 'comments': 99}, ['velocity'], 'https://github.com/alice'),
+                            metric_item({'contributed_prs': 0, 'comments': 99}, ['external-repo'])], ''),
+            ('ambiguous-alias', [metric_item({'comments': 99}, ['bug']),
+                                 metric_item({'comments': 99}, ['velocity'])], ''),
+            ('formatted-counts', [metric_item({'total_prs': 1008, 'contributed_prs': 2002})],
+             '1,008 total PRs │ 2,002 contributed PRs'),
+        ]
+        for name, items, stats in cases:
+            # Issue and PR comments must remain genuine discussion counts even
+            # when their labels look like legacy repository-summary provenance.
+            items += [metric_item({'comments': 9}, ['velocity'], 'https://github.com/alice/own/issues/1'),
+                      metric_item({'comments': 4}, ['external-repo'], 'https://github.com/alice/own/pull/2')]
+            report = metric_report(items)
+            before = copy.deepcopy(report)
+            expected = f'🐙 GitHub: {len(items)} items │ ' + (stats + ' │ ' if stats else '') + '13 comments'
+            for renderer, text in [
+                ('compact', render.render_compact(report)),
+                ('html', render.render_for_html(report)),
+                ('comparison', render.render_comparison_multi([('Alice', report)])),
+                ('html-comparison', render.render_for_html_comparison([('Alice', report)])),
+            ]:
+                with self.subTest(case=name, renderer=renderer):
+                    # The complete emoji-prefixed footer line cannot match a
+                    # title, snippet, or raw engagement evidence by accident.
+                    self.assertEqual(render._build_source_footer_lines(report), [expected])
+                    self.assertIn(expected, text)
+                    self.assertEqual(report, before)
+
     def test_classification_positive_controls(self):
         for label, url, key in [
             ('project-mode', 'https://github.com/alice/own', 'open_issues'),
@@ -173,6 +236,8 @@ class FooterMetrics(unittest.TestCase):
                 line = render._build_source_footer_lines(report)[0]
                 expected = '🐙 GitHub: 2 items │ 123 stars │ 3 merged │ 5 reactions'
                 if open_count: expected += f' │ {open_count} open issues/PRs'
+                if name == 'velocity': expected += ' │ 17 total PRs'
+                if name == 'external': expected += ' │ 17 contributed PRs'
                 expected += f' │ {comment_count + 9} comments'
                 self.assertEqual(line, expected)
                 self.assertEqual(report, before)
